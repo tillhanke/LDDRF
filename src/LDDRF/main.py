@@ -2,15 +2,14 @@
 
 import numpy as np
 import tempfile
-import scipy
 from pyscf.lib import logger, param, einsum
 from pyscf.gto.mole import Mole, is_au
 from pyscf.dft import Grids, RKS, numint
-from LDDRF.potential import basis
-from LDDRF.molecules import center_of_mass as com
+from LDDRF.potential.basis import generate_monomial_basis
 from LDDRF import __version__ as lddrf_version, __file__ as lddrf_path
 from LDDRF.drks import DRKS
 from LDDRF.params import XC
+from LDDRF.molecules import center_of_mass as com
 
 
 def _init_disturbed(mol, potentials, grid, xc=None):
@@ -39,25 +38,6 @@ def _init_disturbed(mol, potentials, grid, xc=None):
     return drks
 
 
-def generate_monomial_basis(mol: Mole, order: int, dft, grid):
-    """
-    generate monomial basis centered around COM of the molecule
-    :param mol: molecule object, which is reference for the monomial basis
-    :param order: maximum order of the basis
-    :param dft: DFT object, which is used to calculate the electron density of the molecule
-    :param grid: Grid object, for which the values of the potentials should be returned
-    :return: potential values for grid coordinates
-    """
-
-    mol_border = basis.find_mol_border(mol=mol,
-                                       dft=dft)
-    monomials = basis.monomial_basis(
-        coords=grid.coords-com(mol),  # important, because mol_border is relative to COM
-        order=order,
-        xcyczc=mol_border,
-        )
-    return monomials
-
 
 class LDDRF:
     """
@@ -83,6 +63,9 @@ class LDDRF:
             If no chkfile is given, a temporary file will be created.
         """
         assert is_au(mol.unit), "Unit of mol must be Bohr"
+        if not np.isclose(com(mol), [0,0,0]).all():
+            logger.warn(mol, "The center of mass of the molecule is not at the origin."
+                             "This might cause problems with the calculation of the LDDRF.")
         self.mol = mol
         self.grid = grid
         if self.grid is not None:
@@ -135,7 +118,7 @@ class LDDRF:
                 dft=self.undisturbed
             )
         else:
-            assert self.pot_base.shape[0] == self.grid.coords.shape[0], f"pot_base and grid must have the same first dimension, but are {self.pot_base.shape[0]} and {self.grid.coords.shape[0]}"
+            assert self.pot_base.shape[1] == self.grid.coords.shape[0], f"pot_base and grid must have the same first dimension, but are {self.pot_base.shape[1]} and {self.grid.coords.shape[0]}"
         self.disturbed = _init_disturbed(mol=self.mol,
                                          potentials=self.pot_base,
                                          grid=self.grid,
@@ -163,7 +146,9 @@ class LDDRF:
                     "#####################"
                     )
         if "dev" in lddrf_version:
-            logger.warn(self.mol, f"Using developement Version\nGit Commit: {insert_commit()}")
+            logger.warn(self.mol, f"Using developement Version\nGit Commit: {(hash:=insert_commit())}")
+            from pyscf.lib import chkfile as chktool
+            chktool.dump(chkfile=self.chkfile, key='DevCommit', value=hash)
         if self.undisturbed.e_tot == 0:
             self.undisturbed.kernel()
 
@@ -223,6 +208,7 @@ class LDDRF:
         Returns:
             LDDRF values on grid
         """
+        #TODO: find way to rotate grid, such that mol is oriented the same way as self.mol is
         assert coords.shape[1] == 3
         if mol is None:
             mol = self.mol
@@ -246,6 +232,7 @@ class LDDRF:
         from pyscf.lib import chkfile as chktool
         chktool.dump_mol(mol=self.mol, chkfile=self.chkfile)
         chktool.dump(chkfile=self.chkfile, key='lddrf', value=self.lddrf)
+        chktool.dump(chkfile=self.chkfile, key='version', value=lddrf_version)
 
     @staticmethod
     def load_from_chkfile(chkfile):

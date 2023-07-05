@@ -1,5 +1,5 @@
 import numpy as np
-from pyscf.dft import Grids
+from pyscf.gto import Mole
 from pyscf.dft.numint import eval_rho
 from LDDRF.params import XC
 from LDDRF.molecules import center_of_mass as com
@@ -87,3 +87,25 @@ def monomial_labels(order: int):
         ord_label = (ord_label + labels[:, np.newaxis]).flatten()
         all_labels.extend(ord_label[np.unique(list_xyz, return_index=True)[1]])
     return all_labels
+
+
+def generate_monomial_basis(mol: Mole, order: int, dft, grid):
+    """
+    generate monomial basis centered around COM of the molecule
+    :param mol: molecule object, which is reference for the monomial basis
+    :param order: maximum order of the basis
+    :param dft: DFT object, which is used to calculate the electron density of the molecule
+    :param grid: Grid object, for which the values of the potentials should be returned
+    :return: potential values for grid coordinates
+    """
+
+    mol_border = find_mol_border(
+        mol=mol,
+        dft=dft
+    )
+    monomials = monomial_basis(
+        coords=grid.coords-com(mol),  # important, because mol_border is relative to COM
+        order=order,
+        xcyczc=mol_border,
+        )
+    return monomials
