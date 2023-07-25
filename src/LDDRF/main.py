@@ -150,23 +150,31 @@ class LDDRF:
             from pyscf.lib import chkfile as chktool
             chktool.dump(chkfile=self.chkfile, key='DevCommit', value=hash)
         if self.undisturbed.e_tot == 0:
+            # if the undisturbed calculation is not yet run do that now
             self.undisturbed.kernel()
 
         def calc_disturbed(lddrf, drks, id):
+            # this function runs the disturbed calculations for the molecule disturbed by the different potentials
             logger.info(lddrf.mol, f"\nCalculating DRKS for potential {potential_ind}")
             if drks.e_tot == 0:
                 drks.kernel()
             if not drks.converged:
+                # if it does not converge immediately it can be restarted and run again with the solution of the
+                # undisturbed calculation as initial guess. This sometimes lets it converge even, if minao initial
+                # guess did not work
                 logger.note(
                     lddrf.mol,
                     f"DRKS for potential {id} did not converge, running again with undisturbed initial guess"
                 )
                 drks.kernel(dm0=lddrf.undisturbed.make_rdm1())
                 if not drks.converged:
+                    # if it still does not converge raise an error, because it needs to converge in order to use for
+                    # LDDRF later on
                     raise RuntimeError(f"DRKS for potential {id} did not converge")
 
         def check_disturbance(lddrf, drks, id, threshold=1e-4):
             # check the energy difference to undisturbed
+            # if it is to high, we might not be in a "useful" linear regime
             if (energy_diff := abs(lddrf.undisturbed.e_tot - drks.e_tot)) / abs(lddrf.undisturbed.e_tot) > threshold:
                 logger.note(
                     drks.mol,
@@ -181,15 +189,18 @@ class LDDRF:
             logger.note(drks.mol, f"Relative energy difference: {energy_diff/abs(lddrf.undisturbed.e_tot)}")
 
         from tqdm import tqdm
+        # if the verbosity setting is low enough it is possible to just display some progressbar, so one can see, that
+        # stuff is happening
         for potential_ind, drks in enumerate(self.disturbed) if self.mol.verbose >= logger.NOTE else tqdm(enumerate(self.disturbed), total=len(self.disturbed)):
+            # now just call the functions to run disturbed calculations for each potential
             calc_disturbed(self, drks, potential_ind)
             check_disturbance(self, drks, potential_ind)
 
         # the minus sign must be there, because otherwise the overlap is not positive definite
-        density_difference = -_density_diff(self.mol, self.undisturbed, self.disturbed, self.grid)
+        density_difference = _density_diff(self.mol, self.undisturbed, self.disturbed, self.grid)
         dens_pot_overlap = einsum(
             'ir, jr -> ij',
-            density_difference,
+            -density_difference,
             self.pot_base * self.grid.weights[None, :]
         )
         moments = np.linalg.cholesky(dens_pot_overlap)

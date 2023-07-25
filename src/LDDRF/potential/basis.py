@@ -1,6 +1,7 @@
 import numpy as np
 from pyscf.gto import Mole
 from pyscf.dft.numint import eval_rho
+from pyscf.dft import Grids
 from LDDRF.params import XC
 from LDDRF.molecules import center_of_mass as com
 
@@ -89,7 +90,7 @@ def monomial_labels(order: int):
     return all_labels
 
 
-def generate_monomial_basis(mol: Mole, order: int, dft, grid):
+def generate_monomial_basis(mol: Mole, order: int, dft=None, grid=None):
     """
     generate monomial basis centered around COM of the molecule
     :param mol: molecule object, which is reference for the monomial basis
@@ -98,6 +99,11 @@ def generate_monomial_basis(mol: Mole, order: int, dft, grid):
     :param grid: Grid object, for which the values of the potentials should be returned
     :return: potential values for grid coordinates
     """
+    if dft is None:
+        dft = mol.RKS(xc=XC).run()
+
+    if grid is None:
+        grid = Grids(mol)
 
     mol_border = find_mol_border(
         mol=mol,
