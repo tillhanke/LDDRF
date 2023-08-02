@@ -9,7 +9,7 @@ from LDDRF.potential.basis import generate_monomial_basis
 from LDDRF import __version__ as lddrf_version, __file__ as lddrf_path
 from LDDRF.drks import DRKS
 from LDDRF.params import XC
-from LDDRF.molecules import center_of_mass as com
+from LDDRF.molecules import center_of_mass as com, align_water_dimer
 
 
 def _init_disturbed(mol, potentials, grid, xc=None):
@@ -229,6 +229,8 @@ class LDDRF:
     def apply_to_pot(self, potential, grid, mol=None):
         if mol is None:
             mol = self.mol
+        else:
+            mol = get_mol_alignment(self.mol, mol, inplace=False)
         assert is_au(mol.unit) and is_au(grid.mol.unit), "Molecule and grid units must be BOHR"
         lddrf_grid = self.on_grid(grid.coords, mol)
         lddrf_pot_ov = einsum("ir, r -> i", lddrf_grid, potential * grid.weights)
@@ -283,6 +285,7 @@ def _density_diff(mol:Mole, dft:RKS, ddfts:list, grid:Grids):
         densd[i] = numint.eval_rho(mol, ao, ddft.make_rdm1()) - dens0
     return densd
 
+
 def _dm_diffs(dft:RKS, ddfts:list):
     """
     This function calculates the difference between the density matrices of the undisturbed and the disturbed dft calculations.
@@ -298,3 +301,16 @@ def _dm_diffs(dft:RKS, ddfts:list):
     return dmd
 
 
+def get_mol_alignment(m1:Mole, m2:Mole, inplace=False):
+    """
+    returns aligned m2, such that the LDDRF can be applied
+    """
+    # currently only supports water molecules
+    assert m1.atom_symbol(0) == m2.atom_symbol(0) == "O" \
+           and m1.atom_symbol(1) == m2.atom_symbol(1) == "H" \
+           and m1.atom_symbol(2) == m2.atom_symbol(2) == "H" \
+           and m1.natm == m2.natm == 3, \
+           "Currently only water molecules with atom ordering OHH are supported"
+    # move/rotate m2
+    m2 = align_water_dimer(m1, m2, inplace=inplace)
+    return m2
