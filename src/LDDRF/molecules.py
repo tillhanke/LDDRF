@@ -33,7 +33,7 @@ def align_water_dimer(h2o, h2o_2, inplace=False, fixpoint="COM", rotation=True):
     elif fixpoint=="GEOM":
         fix = h2o.atom_coords().mean(axis=0)
     else:
-        raise ValueError(f"fixpoint must be COM or O, but got {fixpoint}")
+        raise ValueError(f"fixpoint must be COM, GEOM or O, but got {fixpoint}")
     h2o_2.set_geom_(h2o_2.atom_coords(unit=h2o_2.unit) - h2o_2.atom_coord(0, unit=h2o_2.unit), unit=h2o_2.unit)
     h2o.set_geom_(h2o.atom_coords(unit=h2o.unit) - h2o.atom_coord(0, unit=h2o.unit), unit=h2o.unit)
     # rotate h2o_2
