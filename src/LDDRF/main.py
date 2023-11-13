@@ -219,22 +219,42 @@ class LDDRF:
         Returns:
             LDDRF values on grid
         """
-        #TODO: find way to rotate grid, such that mol is oriented the same way as self.mol is
         assert coords.shape[1] == 3
         if mol is None:
             mol = self.mol
+        else:
+            # check if rotation is the same
+            assert np.allclose(
+                    np.cross(
+                        self.mol.atom_coords()[np.newaxis,:,:] - self.mol.atom_coords()[:,np.newaxis,:], 
+                        mol.atom_coords()[np.newaxis,:,:] - mol.atom_coords()[:,np.newaxis,:]), 
+                    0
+                    ), "Molecular rotation is not the same as self.mol"
         ao = mol.eval_gto("GTOval", coords)
         return np.array([numint.eval_rho(mol, ao, lddrf_i) for lddrf_i in self.lddrf])
 
     def apply_to_pot(self, potential, grid, mol=None):
         if mol is None:
             mol = self.mol
+            coords = grid.coords
         else:
-            mol = get_mol_alignment(self.mol, mol, inplace=False)
+            mol, rot = get_mol_alignment(self.mol, mol, inplace=False)
+            # rotation of the grid, to rotate the potential
+            coords = rot.apply(grid.coords)
         assert is_au(mol.unit) and is_au(grid.mol.unit), "Molecule and grid units must be BOHR"
-        lddrf_grid = self.on_grid(grid.coords, mol)
+        lddrf_grid = self.on_grid(coords, mol)
         lddrf_pot_ov = einsum("ir, r -> i", lddrf_grid, potential * grid.weights)
-        return einsum("i, ir -> r", lddrf_pot_ov, lddrf_grid)
+        response = -einsum("i, ir -> r", lddrf_pot_ov, lddrf_grid)
+
+        # TODO: remove debug stuff  
+        if self.mol.verbose >= logger.DEBUG1:
+            self.DEBUG = { 'apply_to_pot': { 
+                    'response': response,
+                    'mol': mol,
+                    'lddrf_grid': lddrf_grid,
+                    'lddrf_pot_ov': lddrf_pot_ov
+                    }}
+        return response
 
     def store(self):
         """
@@ -303,7 +323,7 @@ def _dm_diffs(dft:RKS, ddfts:list):
 
 def get_mol_alignment(m1:Mole, m2:Mole, inplace=False):
     """
-    returns aligned m2, such that the LDDRF can be applied
+    returns aligned m2 and the rotational matrix, such that the LDDRF can be applied
     """
     # currently only supports water molecules
     assert m1.atom_symbol(0) == m2.atom_symbol(0) == "O" \
@@ -312,5 +332,9 @@ def get_mol_alignment(m1:Mole, m2:Mole, inplace=False):
            and m1.natm == m2.natm == 3, \
            "Currently only water molecules with atom ordering OHH are supported"
     # move/rotate m2
-    m2 = align_water_dimer(m1, m2, inplace=inplace)
+    if np.allclose(np.cross(m1.atom_coords()[np.newaxis,:,:] - m1.atom_coords()[:,np.newaxis,:], m2.atom_coords()[np.newaxis,:,:] - m2.atom_coords()[:,np.newaxis,:]), 0):
+        # if the molecules are already aligned, just return m2
+        from scipy.spatial.transform import Rotation
+        return m2, Rotation.from_matrix(np.eye(3))
+    m2 = align_water_dimer(m1, m2, inplace=inplace, rotation=True)
     return m2
