@@ -39,6 +39,12 @@ def align_water_dimer(h2o, h2o_2, inplace=False, fixpoint="COM", rotation=True):
     # rotate h2o_2
     h2o_2, rot = rotate_OH(h2o, h2o_2, inplace=True, rotation=True)
     # move h2o_2 back
+    if fixpoint=="COM":
+        fix = center_of_mass(h2o_2, unit=h2o_2.unit) - fix
+    elif fixpoint=="GEOM":
+        fix = h2o_2.atom_coords().mean(axis=0) - fix
+    # for case O fix is already the correct movement
+
     h2o_2.set_geom_(h2o_2.atom_coords(unit=h2o_2.unit) + fix, unit=h2o_2.unit)
     if rotation:
         return h2o_2, rot
