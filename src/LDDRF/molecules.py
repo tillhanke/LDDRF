@@ -24,28 +24,28 @@ def align_water_dimer(h2o, h2o_2, inplace=False, fixpoint="COM", rotation=True):
     if not inplace:
         h2o_2 = h2o_2.copy()
     h2o = h2o.copy()
-    # move to origin
     # save fixpoint
     if fixpoint=="COM":
         fix = center_of_mass(h2o_2, unit=h2o_2.unit)  # save center of mass
     elif fixpoint=="O":
         fix = h2o_2.atom_coord(0, unit=h2o_2.unit)  # save oxygen position
     elif fixpoint=="GEOM":
-        fix = h2o.atom_coords().mean(axis=0)
+        fix = h2o.atom_coords().mean(axis=0)  # save geometric center
     else:
         raise ValueError(f"fixpoint must be COM, GEOM or O, but got {fixpoint}")
+    # move to origin
     h2o_2.set_geom_(h2o_2.atom_coords(unit=h2o_2.unit) - h2o_2.atom_coord(0, unit=h2o_2.unit), unit=h2o_2.unit)
     h2o.set_geom_(h2o.atom_coords(unit=h2o.unit) - h2o.atom_coord(0, unit=h2o.unit), unit=h2o.unit)
     # rotate h2o_2
     h2o_2, rot = rotate_OH(h2o, h2o_2, inplace=True, rotation=True)
     # move h2o_2 back
     if fixpoint=="COM":
-        fix = center_of_mass(h2o_2, unit=h2o_2.unit) - fix
+        displacement = center_of_mass(h2o_2, unit=h2o_2.unit) - fix
     elif fixpoint=="GEOM":
-        fix = h2o_2.atom_coords().mean(axis=0) - fix
+        displacement = h2o_2.atom_coords().mean(axis=0) - fix
     # for case O fix is already the correct movement
 
-    h2o_2.set_geom_(h2o_2.atom_coords(unit=h2o_2.unit) + fix, unit=h2o_2.unit)
+    h2o_2.set_geom_(h2o_2.atom_coords(unit=h2o_2.unit) - displacement, unit=h2o_2.unit)
     if rotation:
         return h2o_2, rot
     return h2o_2
