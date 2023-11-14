@@ -226,8 +226,8 @@ class LDDRF:
             # check if rotation is the same
             assert np.allclose(
                     np.cross(
-                        self.mol.atom_coords()[np.newaxis,:,:] - self.mol.atom_coords()[:,np.newaxis,:], 
-                        mol.atom_coords()[np.newaxis,:,:] - mol.atom_coords()[:,np.newaxis,:]), 
+                        self.mol.atom_coord(0) - self.mol.atom_coords()[1:], 
+                        mol.atom_coord(0) - mol.atom_coords()[:1]), 
                     0
                     ), "Molecular rotation is not the same as self.mol"
         ao = mol.eval_gto("GTOval", coords)
@@ -279,7 +279,7 @@ class LDDRF:
         lddrf = LDDRF(
             mol=chktool.load_mol(chkfile=chkfile)
         )
-        lddrf.lddrf = chktool.load(chkfile=chkfile, key='lddrt')
+        lddrf.lddrf = chktool.load(chkfile=chkfile, key='lddrf')
         return lddrf
 
 def _density_diff(mol:Mole, dft:RKS, ddfts:list, grid:Grids):
