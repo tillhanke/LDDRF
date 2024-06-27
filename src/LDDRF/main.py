@@ -219,6 +219,7 @@ class LDDRF:
         Returns:
             LDDRF values on grid
         """
+        # TODO: speed this shit up!
         assert coords.shape[1] == 3
         if mol is None:
             mol = self.mol
@@ -326,6 +327,7 @@ def get_mol_alignment(m1:Mole, m2:Mole, inplace=False):
     returns aligned m2 and the rotational matrix, such that the LDDRF can be applied
     """
     # currently only supports water molecules
+    # TODO: generalize
     assert m1.atom_symbol(0) == m2.atom_symbol(0) == "O" \
            and m1.atom_symbol(1) == m2.atom_symbol(1) == "H" \
            and m1.atom_symbol(2) == m2.atom_symbol(2) == "H" \
